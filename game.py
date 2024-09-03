@@ -18,7 +18,7 @@ active_positions = []
 # Gera uma posição inicial aleatória na primeira coluna da matriz
 start_matriz = random.randint(0, 9)
 matriz[start_matriz][0] = 1
-active_positions.append((start_matriz, 0))  # Armazena a posição inicial
+active_positions.append({'x':start_matriz,'y': 0,'status':False})  # Armazena a posição inicial
 
 # Define a posição inicial do caminho
 position_x = start_matriz
@@ -66,12 +66,12 @@ def set_way(pos_x, pos_y):
         # Define o fim do caminho se chegar à última coluna
         if pos_y == 9:
             matriz[pos_x][pos_y] = 1
-            active_positions.append((pos_x, pos_y))  # Armazena a posição final
+            active_positions.append({'x':pos_x, 'y':pos_y,'status':True})  # Armazena a posição final
             return
         
         # Marca a posição como parte do caminho
         matriz[pos_x][pos_y] = 1
-        active_positions.append((pos_x, pos_y))  # Armazena a posição atual
+        active_positions.append({'x':pos_x, 'y':pos_y,'status':True})
 
 
 # Define o caminho a partir da posição inicial
@@ -109,7 +109,7 @@ positions_matrix = [[(0, 0) for _ in range(10)] for _ in range(10)]
 
 total_time = 10  # 120 segundos = 2 minutos
 start_time = pygame.time.get_ticks()  # Tempo de início do temporizador
-
+large_font = pygame.font.Font(None, 72)  # Fonte maior para o letreiro
 
 
 # Fonte para o placar
@@ -134,6 +134,7 @@ def draw_timer():
     
     # Exibe o cronômetro na tela
     screen.blit(timer_text, (700, 10))
+    return minutes,seconds
 
 
 def draw_score(score):
@@ -162,6 +163,12 @@ def move_player(event, player_row, player_col):
 
     return player_row, player_col
 
+def draw_goal_message():
+    # Renderiza o texto de objetivo alcançado
+    goal_text = large_font.render("OBJETIVO ALCANÇADO!", True, "white")
+    text_rect = goal_text.get_rect(center=(screen_width // 2, screen_height // 2))
+    screen.blit(goal_text, text_rect)
+
 
 while running:
     # Poll for events
@@ -174,6 +181,8 @@ while running:
     # Fill the screen with a color to wipe away anything from last frame
     screen.fill("purple")
 
+    time_m,time_s = draw_timer()
+
     # Desenha o grid e define a matriz de posições
     for row in range(10):
         for col in range(10):
@@ -182,7 +191,7 @@ while running:
             positions_matrix[row][col] = (x, y)  # Define a posição na matriz
             pygame.draw.rect(
                 screen,
-                (255, 140, 0) if matriz[col][row] == 1 else rect_color,
+                (255, 140, 0) if matriz[col][row] == 1 and time_s != 0 else rect_color,
                 (x, y, rect_width, rect_height),
             )
 
@@ -191,7 +200,12 @@ while running:
 
     draw_score(score)
 
-    draw_timer()
+    for position in active_positions:
+        if position['status']:
+            if position['x'] == player_col and position['y'] == player_row:
+                score = score + 10
+                position['status'] = False
+       
 
     # Flip() the display to put your work on screen
     pygame.display.flip()
