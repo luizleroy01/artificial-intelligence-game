@@ -1,6 +1,31 @@
 import pygame
 import random
 from typing import Final
+from fpdf import FPDF
+
+#Recohnecimento de voz
+import speech_recognition as sr
+def call_game():
+    # Cria um reconhecedor
+    recognizer = sr.Recognizer()
+
+    # Usa o microfone como fonte de áudio
+    with sr.Microphone() as source:
+        print("Fale algo...")
+        audio = recognizer.listen(source)
+
+    # Reconhece a fala usando o Google Web Speech API
+    try:
+        text = recognizer.recognize_google(audio, language='pt-BR')
+        print(f"Você disse: {text}")
+        return text
+    except sr.UnknownValueError:
+        print("Não foi possível entender o áudio")
+    except sr.RequestError:
+        print("Erro ao solicitar os resultados do serviço de reconhecimento de fala")
+
+    
+
 
 # Definição de constantes
 UP_WAY: Final = 1
@@ -38,6 +63,7 @@ def next_step(end_way):
 
 def set_way(pos_x, pos_y):
     global active_positions  # Usa a lista global para armazenar as posições
+    global final_position 
 
     end_way = 10
     while end_way > 0:
@@ -165,10 +191,48 @@ def move_player(event, player_row, player_col):
 
 def draw_goal_message():
     # Renderiza o texto de objetivo alcançado
-    goal_text = large_font.render("OBJETIVO ALCANÇADO!", True, "white")
-    text_rect = goal_text.get_rect(center=(screen_width // 2, screen_height // 2))
+    goal_text = large_font.render("OBJETIVO ALCANÇADO!", True, (10,92,10))
+    text_rect = goal_text.get_rect(center=(screen_width / 2, screen_height / 2))
     screen.blit(goal_text, text_rect)
 
+def generate_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Explicação do Loop sobre Active Positions", ln=True, align="C")
+
+    explanation = """
+O loop a seguir é responsável por iterar sobre todas as `active_positions`, que são as
+posições ativadas na matriz ao longo do jogo. Cada posição é verificada se tem seu
+status como `True`, indicando que ainda é válida para interação.
+
+Código Explicado:
+for position in active_positions:
+    if position['status']:
+        if position['x'] == player_col and position['y'] == player_row:
+            score += 10
+            position['status'] = False
+
+Explicação:
+1. O loop percorre cada posição da lista `active_positions`.
+2. Se o status da posição for `True`, indica que ainda não foi "consumida" pelo jogador.
+3. Se as coordenadas `x` e `y` da posição coincidirem com a posição atual do jogador
+   (representadas por `player_col` e `player_row`), a posição é considerada como atingida.
+4. O score do jogador é incrementado e o status da posição é alterado para `False`,
+   indicando que o jogador já passou por essa posição.
+
+Esse loop é essencial para o mecanismo de pontuação e progresso do jogo, permitindo que
+o jogador colete pontos ao passar por posições ativas na matriz.
+    """
+    
+    pdf.multi_cell(0, 10, explanation)
+    pdf.output("explicacao_loop_active_positions.pdf")
+    print("PDF gerado com sucesso: explicacao_loop_active_positions.pdf")
+
+chamou  = True
+
+
+    
 
 while running:
     # Poll for events
@@ -177,6 +241,7 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:  # Verifica se uma tecla foi pressionada
             player_row, player_col = move_player(event, player_row, player_col)
+       
 
     # Fill the screen with a color to wipe away anything from last frame
     screen.fill("purple")
@@ -196,9 +261,13 @@ while running:
             )
 
     # Desenha o player
-    draw_player()
+    if player_row < 6: 
+        draw_player()
 
     draw_score(score)
+
+    if player_row >= 6:
+        draw_goal_message()
 
     for position in active_positions:
         if position['status']:
@@ -210,6 +279,23 @@ while running:
     # Flip() the display to put your work on screen
     pygame.display.flip()
 
-    dt = clock.tick(60) / 1000  # Limits FPS to 60
+    if chamou :
+        commands = call_game()
+        print(commands)
+        list_commands = commands.split(' ')
 
+        for c in list_commands:
+            if c == 'baixo':
+                player_row += 1
+            elif c == 'esquerda':
+                player_col -= 1
+            elif c == 'direita':
+                player_col += 1
+            
+            chamou = False
+    
+    
+
+    dt = clock.tick(60) / 1000  # Limits FPS to 60
+generate_pdf()
 pygame.quit()
