@@ -20,10 +20,9 @@ def call_game():
         print(f"Você disse: {text}")
         return text
     except sr.UnknownValueError:
-        print("Não foi possível entender o áudio")
-    except sr.RequestError:
-        print("Erro ao solicitar os resultados do serviço de reconhecimento de fala")
-
+        print("Não foi possível entender o que você disse.")
+    except sr.RequestError as e:
+        print(f"Erro ao acessar o serviço de reconhecimento de voz: {e}")
     
 
 
@@ -39,15 +38,16 @@ positions_matrix = [[0 for _ in range(10)] for _ in range(10)]
 
 # Lista para armazenar as posições setadas como 1
 active_positions = []
+all_positions = [[True for _ in range(10)] for _ in range(10)]
 
 # Gera uma posição inicial aleatória na primeira coluna da matriz
 start_matriz = random.randint(0, 9)
 matriz[start_matriz][0] = 1
 active_positions.append({'x':start_matriz,'y': 0,'status':False})  # Armazena a posição inicial
-
 # Define a posição inicial do caminho
 position_x = start_matriz
 position_y = 0
+all_positions[position_x][position_y] = False
 
 
 def next_step(end_way):
@@ -64,6 +64,7 @@ def next_step(end_way):
 def set_way(pos_x, pos_y):
     global active_positions  # Usa a lista global para armazenar as posições
     global final_position 
+    global all_positions
 
     end_way = 10
     while end_way > 0:
@@ -94,9 +95,11 @@ def set_way(pos_x, pos_y):
             matriz[pos_x][pos_y] = 1
             active_positions.append({'x':pos_x, 'y':pos_y,'status':True})  # Armazena a posição final
             return
-        
+    
+
         # Marca a posição como parte do caminho
         matriz[pos_x][pos_y] = 1
+        all_positions[pos_x][pos_y] = False
         active_positions.append({'x':pos_x, 'y':pos_y,'status':True})
 
 
@@ -135,7 +138,7 @@ positions_matrix = [[(0, 0) for _ in range(10)] for _ in range(10)]
 
 total_time = 10  # 120 segundos = 2 minutos
 start_time = pygame.time.get_ticks()  # Tempo de início do temporizador
-large_font = pygame.font.Font(None, 72)  # Fonte maior para o letreiro
+large_font = pygame.font.Font(None, 60)  # Fonte maior para o letreiro
 
 
 # Fonte para o placar
@@ -195,44 +198,76 @@ def draw_goal_message():
     text_rect = goal_text.get_rect(center=(screen_width / 2, screen_height / 2))
     screen.blit(goal_text, text_rect)
 
-def generate_pdf():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Explicação do Loop sobre Active Positions", ln=True, align="C")
+def draw_exception_message():
+    # Renderiza o texto de objetivo alcançado
+    text = f"Exceção Lançada!\nvocê saiu do caminho correto"
+    goal_text = large_font.render(f"Exceção Lançada! você perdeu", True, (255,0,0))
+    text_rect = goal_text.get_rect(center=(screen_width / 2, screen_height / 2))
+    screen.blit(goal_text, text_rect)
 
-    explanation = """
-O loop a seguir é responsável por iterar sobre todas as `active_positions`, que são as
-posições ativadas na matriz ao longo do jogo. Cada posição é verificada se tem seu
-status como `True`, indicando que ainda é válida para interação.
-
-Código Explicado:
-for position in active_positions:
-    if position['status']:
-        if position['x'] == player_col and position['y'] == player_row:
-            score += 10
-            position['status'] = False
-
-Explicação:
-1. O loop percorre cada posição da lista `active_positions`.
-2. Se o status da posição for `True`, indica que ainda não foi "consumida" pelo jogador.
-3. Se as coordenadas `x` e `y` da posição coincidirem com a posição atual do jogador
-   (representadas por `player_col` e `player_row`), a posição é considerada como atingida.
-4. O score do jogador é incrementado e o status da posição é alterado para `False`,
-   indicando que o jogador já passou por essa posição.
-
-Esse loop é essencial para o mecanismo de pontuação e progresso do jogo, permitindo que
-o jogador colete pontos ao passar por posições ativas na matriz.
-    """
-    
-    pdf.multi_cell(0, 10, explanation)
-    pdf.output("explicacao_loop_active_positions.pdf")
-    print("PDF gerado com sucesso: explicacao_loop_active_positions.pdf")
 
 chamou  = True
+show_modal = False
+modal_active = False
+input_text = ''
+end_game = False
+
+def draw_button(screen):
+    global show_modal
+    pygame.draw.rect(screen, (0, 128, 255), pygame.Rect(200, 10, 40, 30))  # Desenha o botão azul
+    font = pygame.font.SysFont(None, 24)
+    text = font.render("Info", True, (255, 255, 255))  # Texto do botão
+    screen.blit(text, (pygame.Rect(200, 10, 30, 30).x + 5, pygame.Rect(200, 10, 30, 30).y + 10))
+
+def draw_button_function(screen):
+    global modal_active
+    pygame.draw.rect(screen, (0, 132, 0), pygame.Rect(300, 10, 150, 30))  # Desenha o botão verde
+    font = pygame.font.SysFont(None, 24)
+    text = font.render("Create Function", True, (255, 255, 255))  # Texto do botão
+    screen.blit(text, (pygame.Rect(300, 10, 150, 30).x + 5, pygame.Rect(300, 10, 150, 30).y + 10))
 
 
-    
+# Função para desenhar o modal
+def draw_modal(screen):
+    pygame.draw.rect(screen, (50, 50, 50), (100, 100, 600, 300))  # Desenha o modal cinza
+    font = pygame.font.SysFont(None, 24)
+    texto_modal = [
+    "Informações do jogo:",
+    "1 - O score é sua pontuação no jogo quando acerta ao caminho da trilha",
+    "destacada.",
+    "2 - Ao errar o caminho da trilha configura-se uma exceção que pode ser",
+    "verificável",
+    " ou não verificável.",
+    "3 - Se você tiver score suficiente acima de 0,a exceção será verificável.",
+    "Se não tiver score suficiente, a execeção não será verificavel e dará", 
+    "fim ao jogo",
+    ]
+    start_x = 120
+    start_y = 120
+    line_height = 30  # Altura entre as linhas de texto
+
+    # Desenha cada texto no modal
+    for i, line in enumerate(texto_modal):
+        text_surface = font.render(line, True, (255, 255, 255))
+        screen.blit(text_surface, (start_x, start_y + i * line_height))
+
+def draw_modal_function(screen):
+    global input_text
+    pygame.draw.rect(screen, (50, 50, 50), (100, 100, 600, 300))  # Desenha o modal cinza
+    font = pygame.font.SysFont(None, 24)
+    texto_modal = [
+    "Digite sua função:",
+    input_text
+    ]
+    start_x = 120
+    start_y = 120
+    line_height = 30  # Altura entre as linhas de texto
+
+    # Desenha cada texto no modal
+    for i, line in enumerate(texto_modal):
+        text_surface = font.render(line, True, (255, 255, 255))
+        screen.blit(text_surface, (start_x, start_y + i * line_height))
+
 
 while running:
     # Poll for events
@@ -240,7 +275,49 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:  # Verifica se uma tecla foi pressionada
+            if event.key == pygame.K_k:
+                direction = call_game()
+                if direction == 'esquerda':
+                    player_col-=1
+                elif direction == 'baixo':
+                    player_row+=1
+                elif direction == 'direita':
+                    player_col+=1
+                elif direction == 'cima':
+                    player_row-=1
+            
+            if modal_active:  # Captura apenas quando o modal está ativo
+                    if event.key == pygame.K_RETURN:
+                        print(f"Texto digitado: {input_text}")  # Faz algo com o texto digitado
+
+                        key_words = input_text.split(' ')
+                        if key_words[0] == 'function' and key_words[1] == 'move':
+                            direction = int(key_words[3])
+                            if key_words[2] == 'esquerda':
+                                player_col-=direction
+                            elif key_words[2]  == 'baixo':
+                                player_row+=direction
+                            elif key_words[2]  == 'direita':
+                                player_col+=direction
+                            elif key_words[2]  == 'cima':
+                                player_row-=direction
+                        input_text = ""  # Limpa o texto após o uso
+                        modal_active = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        input_text = input_text[:-1]  # Remove o último caractere
+                    else:
+                        input_text += event.unicode 
             player_row, player_col = move_player(event, player_row, player_col)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = pygame.mouse.get_pos()
+            button_rect = pygame.Rect(200, 10, 60, 30)
+            button_rect_function = pygame.Rect(300, 10, 150, 30)
+
+            if button_rect.collidepoint(mouse_pos):
+                show_modal = not show_modal
+
+            if button_rect_function.collidepoint(mouse_pos):
+                modal_active = not modal_active
        
 
     # Fill the screen with a color to wipe away anything from last frame
@@ -261,12 +338,12 @@ while running:
             )
 
     # Desenha o player
-    if player_row < 6: 
+    if player_row < 6 and not end_game: 
         draw_player()
 
     draw_score(score)
 
-    if player_row >= 6:
+    if player_row >= 6 and not end_game:
         draw_goal_message()
 
     for position in active_positions:
@@ -274,28 +351,33 @@ while running:
             if position['x'] == player_col and position['y'] == player_row:
                 score = score + 10
                 position['status'] = False
-       
+
+    
+    if all_positions[player_col][player_row]:
+        score = score - 10
+        all_positions[player_col][player_row] = False
+        if score < 0:
+            print("Você perdeu , não tem mais score para tratar suas exceções")
+
+    if score < 0:
+        end_game = True
+
+    if end_game:
+        draw_exception_message()
+
+    draw_button(screen)
+    if show_modal:
+        draw_modal(screen)
+
+    draw_button_function(screen)
+    if modal_active:
+        draw_modal_function(screen)
+
 
     # Flip() the display to put your work on screen
     pygame.display.flip()
-
-    if chamou :
-        commands = call_game()
-        print(commands)
-        list_commands = commands.split(' ')
-
-        for c in list_commands:
-            if c == 'baixo':
-                player_row += 1
-            elif c == 'esquerda':
-                player_col -= 1
-            elif c == 'direita':
-                player_col += 1
-            
-            chamou = False
-    
     
 
     dt = clock.tick(60) / 1000  # Limits FPS to 60
-generate_pdf()
+
 pygame.quit()
